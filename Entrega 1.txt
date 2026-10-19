@@ -1,0 +1,385 @@
+# importar librerías importantes
+import os
+import random
+import numpy as np
+from glob import glob
+from matplotlib import pyplot as plt
+
+import cv2
+
+
+group = 2 # Cambiar por el número de grupo
+
+
+def determine_classes(group: int) -> list:
+    """Función que determina las clases a utilizar en el proyecto.
+
+    Args:
+        group (int): Número de grupo.
+
+    Returns:
+        list: Lista con los nombres de las clases a utilizar.
+    """
+    # Se fija la semilla para reproducibilidad
+    random.seed(group)
+    
+    # Se obtienen las categorías y la cantidad de imágenes por categoría
+    stats = [('Canis latrans', 1286), ('Castor canadensis', 854), ('Dasypus novemcinctus', 515), ('Didelphis virginiana', 713), 
+             ('Lepus californicus', 515), ('Lynx rufus', 854), ('Megaptera novaeangliae', 515), ('Mephitis mephitis', 515), 
+             ('Odocoileus hemionus', 1286), ('Odocoileus virginianus', 1795), ('Otospermophilus beecheyi', 854), 
+             ('Otospermophilus variegatus', 515), ('Phoca vitulina', 713), ('Procyon lotor', 1286), ('Sciurus carolinensis', 1795), 
+             ('Sciurus niger', 1795), ('Sylvilagus audubonii', 515), ('Sylvilagus floridanus', 854), ('Tamias striatus', 854), 
+             ('Tamiasciurus hudsonicus', 713), ('Urocyon cinereoargenteus', 515), ('Ursus americanus', 713), ('Vulpes vulpes', 854)]
+    
+    # Se agrupan las categorías por cantidad de imágenes
+    clusters = {}
+    for category, num_images in stats:
+        if num_images in clusters:
+            clusters[num_images].append(category)
+        else:
+            clusters[num_images] = [category]
+    
+    # Se selecciona una categoría aleatoria de cada cluster
+    categories = []
+    for cluster_categories in clusters.values():
+        categories += [random.choice(cluster_categories)]
+    return categories
+
+assert group is not None, "Por favor, asigna un número de grupo a la variable 'group'."
+assert group > 0, "El número de grupo debe ser mayor que 0."
+assert group <= 28, "El número de grupo debe ser menor o igual que 28."
+
+categories = determine_classes(group)
+print(f"Las classes que usarán en este Mini-proyecto serán:\n{", ".join(categories)}.")
+
+
+dict_labels = {} # Cambiar por un diccionario con las etiquetas de las clases
+
+# YOUR CODE HERE
+dict_labels.update({category: label for label, category in enumerate(sorted(categories))})
+
+def get_data(subset: str) -> tuple[list, list]:
+  """Función que obtiene las rutas de las imágenes y sus etiquetas.
+
+  Args:
+      subset (str): Nombre del subconjunto de datos a utilizar.
+
+  Returns:
+      tuple[list, list]: Rutas de las imágenes y sus etiquetas.
+  """
+  paths = [] # Cambiar por una lista con las rutas de las imágenes
+  labels = [] # Cambiar por una lista con las etiquetas de las imágenes
+  
+  # YOUR CODE HERE
+  if subset not in ("train", "valid", "test"):
+    raise ValueError("subset debe ser 'train', 'valid' o 'test'.")
+
+  data_dir = os.path.join(os.path.expanduser("~"), "Downloads", "dataset")
+  for category in dict_labels:
+    category_paths = sorted(glob(os.path.join(data_dir, subset, category, "*")))
+    category_paths = [path for path in category_paths if os.path.isfile(path)]
+    paths.extend(category_paths)
+    labels.extend([dict_labels[category]] * len(category_paths))
+
+  return paths, labels
+
+train_paths, train_labels = get_data("train")
+valid_paths, valid_labels = get_data("valid")
+test_paths, test_labels = get_data("test")
+
+
+assert len(train_paths) > 0, "No se ha cargado ningún dato de entrenamiento"
+assert len(train_paths) == 5163, "El número de datos de entrenamiento no es correcto"
+assert len(valid_paths) > 0, "No se ha cargado ningún dato de validación"
+assert len(valid_paths) == 1723, "El número de datos de validación no es correcto"
+assert len(test_paths) > 0, "No se ha cargado ningún dato de test"
+assert len(test_paths) == 1724, "El número de datos de test no es correcto"
+
+assert type(train_paths[0]) == str, "Los datos de entrenamiento no tienen la forma correcta"
+assert type(valid_paths[0]) == str, "Los datos de validación no tienen la forma correcta"
+assert type(test_paths[0]) == str, "Los datos de test no tienen la forma correcta"
+
+assert type(train_labels[0]) == int, "Las etiquetas de entrenamiento no tienen la forma correcta"
+assert type(valid_labels[0]) == int, "Las etiquetas de validación no tienen la forma correcta"
+assert type(test_labels[0]) == int, "Las etiquetas de test no tienen la forma correcta"
+
+assert len(dict_labels) == len(categories), "El diccionario de labels no tiene la longitud correcta"
+
+categories_sorted = sorted(categories)
+assert list(dict_labels.keys()) == categories_sorted, "Las llaves del diccionario de labels no son correctas"
+assert list(dict_labels.values()) == list(range(len(categories))), "Los valores del diccionario de labels no son correctos"
+
+assert min([dict_labels[train_paths[i].split(os.sep)[-2]] == train_labels[i] for i in range(len(train_paths))]), "Las etiquetas de entrenamiento no coinciden"
+assert min([dict_labels[valid_paths[i].split(os.sep)[-2]] == valid_labels[i] for i in range(len(valid_paths))]), "Las etiquetas de validación no coinciden"
+assert min([dict_labels[test_paths[i].split(os.sep)[-2]] == test_labels[i] for i in range(len(test_paths))]), "Las etiquetas de test no coinciden"
+
+
+splits = {
+    "train": (train_paths, train_labels),
+    "valid": (valid_paths, valid_labels),
+    "test": (test_paths, test_labels),
+}
+
+counts = {}
+for category, label in dict_labels.items():
+    counts[category] = {
+        subset: sum(current_label == label for current_label in labels)
+        for subset, (_, labels) in splits.items()
+    }
+
+print(f"{'Clase':35} {'Train':>8} {'Valid':>8} {'Test':>8}")
+for category, split_counts in counts.items():
+    print(
+        f"{category:35} {split_counts['train']:8d} "
+        f"{split_counts['valid']:8d} {split_counts['test']:8d}"
+    )
+
+x = np.arange(len(dict_labels))
+bar_width = 0.25
+fig, ax = plt.subplots(figsize=(14, 6))
+for offset, subset in enumerate(splits):
+    values = [counts[category][subset] for category in dict_labels]
+    ax.bar(x + (offset - 1) * bar_width, values, bar_width, label=subset)
+ax.set_xticks(x)
+ax.set_xticklabels(dict_labels.keys(), rotation=45, ha="right")
+ax.set_ylabel("Número de imágenes")
+ax.set_title("Cantidad de imágenes por clase y conjunto")
+ax.legend(title="Conjunto")
+fig.tight_layout()
+plt.show()
+
+for subset in splits:
+    values = [counts[category][subset] for category in dict_labels]
+    print(
+        f"{subset}: entre {min(values)} y {max(values)} imágenes por clase "
+        f"(diferencia: {max(values) - min(values)})."
+    )
+
+fig, axes = plt.subplots(len(dict_labels), len(splits), figsize=(12, 4 * len(dict_labels)))
+for row, (category, label) in enumerate(dict_labels.items()):
+    for column, (subset, (paths, labels)) in enumerate(splits.items()):
+        ax = axes[row, column]
+        sample_path = next(
+            (path for path, current_label in zip(paths, labels) if current_label == label),
+            None,
+        )
+        if sample_path is None:
+            ax.text(0.5, 0.5, "Sin imágenes", ha="center", va="center")
+        else:
+            image = cv2.imread(sample_path)
+            if image is not None:
+                ax.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+            else:
+                ax.text(0.5, 0.5, "No se pudo abrir", ha="center", va="center")
+        ax.set_title(f"{category}\n{subset}")
+        ax.axis("off")
+fig.tight_layout()
+plt.show()
+
+gray_images = 0
+color_images = 0
+unreadable_images = 0
+for paths, _ in splits.values():
+    for path in paths:
+        image = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+        if image is None:
+            unreadable_images += 1
+        elif image.ndim == 2 or (image.ndim == 3 and image.shape[2] == 1):
+            gray_images += 1
+        else:
+            color_images += 1
+
+print(f"Imágenes guardadas en escala de grises: {gray_images}")
+print(f"Imágenes guardadas a color: {color_images}")
+print(f"Imágenes que no se pudieron abrir: {unreadable_images}")
+
+
+def processing(Im: np.ndarray, img_size: tuple[int] | None = None, color_space: str | None = None) -> np.ndarray:
+    """Función que preprocesa una lista de imágenes.
+
+    Args:
+        Im_list (list[np.ndarray]): Lista con las imágenes a preprocesar.
+        img_size (tuple[int] | None): Tamaño de la imagen.
+        color_space (str | None): Espacio de color a utilizar. Puede ser "rgb", "gray", "hsv" o "lab".
+
+    Returns:
+        list[np.ndarray]: Lista con las imágenes preprocesadas.
+    """
+    if img_size is not None:
+        Im = cv2.resize(Im, img_size)
+
+    conversions = {
+        "rgb": cv2.COLOR_BGR2RGB,
+        "gray": cv2.COLOR_BGR2GRAY,
+        "hsv": cv2.COLOR_BGR2HSV,
+        "lab": cv2.COLOR_BGR2LAB,
+    }
+    if color_space is not None:
+        if color_space not in conversions:
+            raise ValueError("color_space debe ser 'rgb', 'gray', 'hsv' o 'lab'.")
+        Im = cv2.cvtColor(Im, conversions[color_space])
+
+    return Im
+
+
+Im_list = [cv2.imread(path) for path in train_paths[:5]]
+img_size = (224, 224)
+color_space = "rgb"
+Im_proc = [processing(Im, img_size, color_space) for Im in Im_list]
+
+assert len(Im_proc) == len(Im_list), "El número de imágenes preprocesadas no es correcto"
+assert type(Im_proc) == list, "Las imágenes preprocesadas no están en una lista"
+assert type(Im_proc[0]) == np.ndarray, "Las imágenes preprocesadas no son arreglos de numpy"
+assert np.array(Im_proc).shape[1:] == (224, 224, 3), "Las imágenes preprocesadas no tienen el tamaño correcto"
+assert np.array_equal(cv2.cvtColor(cv2.resize(Im_list[0], (224, 224)), cv2.COLOR_BGR2RGB), Im_proc[0]), "Las imágenes preprocesadas no son correctas"
+
+color_space = "gray"
+Im_proc = [processing(Im, img_size, color_space) for Im in Im_list]
+assert np.array(Im_proc).shape[1:] == (224, 224), "Las imágenes preprocesadas no tienen el tamaño correcto"
+assert np.array_equal(cv2.cvtColor(cv2.resize(Im_list[0], (224, 224)), cv2.COLOR_BGR2GRAY), Im_proc[0]), "Las imágenes preprocesadas no son correctas"
+
+color_space = "hsv"
+Im_proc = [processing(Im, img_size, color_space) for Im in Im_list]
+assert np.array(Im_proc).shape[1:] == (224, 224, 3), "Las imágenes preprocesadas no tienen el tamaño correcto"
+assert np.array_equal(cv2.cvtColor(cv2.resize(Im_list[0], (224, 224)), cv2.COLOR_BGR2HSV), Im_proc[0]), "Las imágenes preprocesadas no son correctas"
+
+color_space = "lab"
+Im_proc = [processing(Im, img_size, color_space) for Im in Im_list]
+assert np.array(Im_proc).shape[1:] == (224, 224, 3), "Las imágenes preprocesadas no tienen el tamaño correcto"
+assert np.array_equal(cv2.cvtColor(cv2.resize(Im_list[0], (224, 224)), cv2.COLOR_BGR2LAB), Im_proc[0]), "Las imágenes preprocesadas no son correctas"
+
+Im_proc = [processing(Im, (256, 256)) for Im in Im_list]
+assert np.array(Im_proc).shape[1:] == (256, 256, 3), "Las imágenes preprocesadas no tienen el tamaño correcto"
+assert np.array_equal(cv2.resize(Im_list[0], (256, 256)), Im_proc[0]), "Las imágenes preprocesadas no son correctas"
+
+Im_proc = [processing(Im, None, "lab") for Im in Im_list]
+assert np.array_equal(cv2.cvtColor(Im_list[0], cv2.COLOR_BGR2LAB), Im_proc[0]), "Las imágenes preprocesadas no son correctas"
+
+
+def data_augmentation(Im: np.ndarray, transformations: list[str], alpha_factor: tuple[float] | None = None, beta_factor: tuple[int] | None = None) -> np.ndarray:
+    """Función que realiza data augmentation a una imagen.
+
+    Args:
+        Im (np.ndarray): Imagen a transformar.
+        transformations (list[str]): Lista de transformaciones a aplicar. Los valores posibles son "flip", "brightness", "contrast" y "brightness and contrast".
+        alpha_factor (tuple[float] | None): Factor de ajuste de brillo. Si es None, no se aplica.
+        beta_factor (tuple[int] | None): Factor de ajuste de contraste. Si es None, no se aplica.
+
+    Returns:
+        np.ndarray: Imagen transformada.
+    """
+    valid_transformations = {"flip", "brightness", "contrast", "brightness and contrast"}
+    if any(transformation not in valid_transformations for transformation in transformations):
+        raise ValueError("Transformación no válida.")
+
+    if "flip" in transformations:
+        Im = cv2.flip(Im, 1)
+
+    apply_contrast = "contrast" in transformations or "brightness and contrast" in transformations
+    apply_brightness = "brightness" in transformations or "brightness and contrast" in transformations
+
+    if apply_contrast or apply_brightness:
+        alpha = random.uniform(*alpha_factor) if apply_contrast and alpha_factor is not None else 1
+        beta = random.uniform(*beta_factor) if apply_brightness and beta_factor is not None else 0
+        Im = cv2.convertScaleAbs(Im, alpha=alpha, beta=beta)
+
+    return Im
+
+
+Im = Im_list[0]
+transformations = ["flip"]
+Im_aug = data_augmentation(Im, transformations)
+Im_aug = cv2.cvtColor(Im_aug, cv2.COLOR_BGR2RGB)
+
+fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+ax[0].imshow(cv2.cvtColor(Im, cv2.COLOR_BGR2RGB))
+ax[0].set_title("Imagen original")
+ax[0].axis("off")
+ax[1].imshow(Im_aug)
+ax[1].set_title("Imagen aumentada (solo flip)")
+ax[1].axis("off")
+plt.show()
+
+assert Im.shape == Im_aug.shape, "La imagen aumentada no tiene el mismo tamaño que la original"
+assert np.array_equal(cv2.cvtColor(Im[:, ::-1], cv2.COLOR_BGR2RGB), Im_aug), "La imagen aumentada no es igual a la original"
+
+transformations = ["flip", "contrast"]
+random.seed(1) # Para reproducibilidad
+Im_aug = data_augmentation(Im, transformations, (1.5, 2.5))
+random.seed(1) # Para reproducibilidad
+first_way = cv2.convertScaleAbs(Im[:, ::-1], alpha=random.uniform(1.5, 2.5), beta=0)
+assert Im_aug.shape == Im.shape, "La imagen aumentada no tiene el mismo tamaño que la original"
+assert np.array_equal(first_way, Im_aug), "La imagen aumentada no es igual a la original"
+
+fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+ax[0].imshow(cv2.cvtColor(Im, cv2.COLOR_BGR2RGB))
+ax[0].set_title("Imagen original")
+ax[0].axis("off")
+ax[1].imshow(cv2.cvtColor(Im_aug, cv2.COLOR_BGR2RGB))
+ax[1].set_title("Imagen aumentada (flip y brillo)")
+ax[1].axis("off")
+plt.show()
+
+transformations = ["flip", "brightness"]
+random.seed(1) # Para reproducibilidad
+Im_aug = data_augmentation(Im, transformations, None, (20, 80))
+random.seed(1) # Para reproducibilidad
+first_way = cv2.convertScaleAbs(Im[:, ::-1], alpha=1, beta=random.uniform(20, 80))
+assert Im_aug.shape == Im.shape, "La imagen aumentada no tiene el mismo tamaño que la original"
+assert np.array_equal(first_way, Im_aug), "La imagen aumentada no es igual a la original"
+
+fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+ax[0].imshow(cv2.cvtColor(Im, cv2.COLOR_BGR2RGB))
+ax[0].set_title("Imagen original")
+ax[0].axis("off")
+ax[1].imshow(cv2.cvtColor(Im_aug, cv2.COLOR_BGR2RGB))
+ax[1].set_title("Imagen aumentada (flip y contraste)")
+ax[1].axis("off")
+plt.show()
+
+transformations = ["flip", "brightness and contrast"]
+random.seed(1) # Para reproducibilidad
+Im_aug = data_augmentation(Im, transformations, (1.5, 2.5), (20, 80))
+fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+ax[0].imshow(cv2.cvtColor(Im, cv2.COLOR_BGR2RGB))
+ax[0].set_title("Imagen original")
+ax[0].axis("off")
+ax[1].imshow(cv2.cvtColor(Im_aug, cv2.COLOR_BGR2RGB))
+ax[1].set_title("Imagen aumentada (flip, brillo y contraste)")
+ax[1].axis("off")
+plt.show()
+
+random.seed(1) # Para reproducibilidad
+alpha = random.uniform(1.5, 2.5)
+beta = random.uniform(20, 80)
+first_way = cv2.convertScaleAbs(Im[:, ::-1], alpha=alpha, beta=beta)
+assert np.array_equal(first_way, Im_aug), "La imagen aumentada no es igual a la original"
+
+
+import json
+from pathlib import Path
+
+
+def converter(filename: str) -> None:
+    notebook_path = Path(filename).with_suffix(".ipynb")
+    if not notebook_path.exists():
+        notebook_path = Path.cwd() / "Mini-e3.1" / notebook_path.name
+    if not notebook_path.exists():
+        raise FileNotFoundError(f"No se encontró el notebook: {notebook_path}")
+
+    with notebook_path.open(encoding="utf-8") as notebook_file:
+        notebook = json.load(notebook_file)
+
+    code_cells = [
+        "".join(cell["source"])
+        for cell in notebook["cells"]
+        if cell["cell_type"] == "code"
+    ]
+    output_path = notebook_path.with_suffix(".txt")
+    output_path.write_text("\n\n".join(code_cells), encoding="utf-8")
+    print(f"Archivo generado: {output_path}")
+
+
+converter("Entrega 1")
+
+
